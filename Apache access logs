@@ -1,0 +1,66 @@
+
+# Sample Logstash configuration for creating a simple
+# Beats -> Logstash -> Elasticsearch pipeline.
+
+input {
+  beats {
+    port => 5044
+  }
+}
+
+
+filter
+{
+	 if ([message] =~ "GET / HTTP")
+	   {
+	    	drop{}	
+	   }  else if ([message] =~ "HEAD / HTTP")
+           {
+                drop{}
+           }
+
+
+	 mutate
+           {
+              gsub =>
+                     [
+  	                 "message","mobile=\d+","PII",
+	                   "message","email=\w+","PII",
+	                   "message","phone=\w+","PII",
+        	           "message","phone=\d+","PII"
+                     ]
+           }
+       
+	 grok
+			 	{
+                    match => {"message" => "%{COMMONAPACHELOG}"}
+				}
+	 date    
+                {
+                    match => [ "timestamp" , "dd/MMM/yyyy:HH:mm:ss Z" ]
+                }
+     geoip
+                {
+					source => "clientip"
+                }
+	
+if ("cmd" in [request] or "%3Cpoc" in [request] or "%3Cscript" in [request] or "=alert(" in [request] or "openvas" in [request] or "nessus" in [request] or "acunteix" in [request] or "nikto" in [request] or "qualys" in [request] or "../" in [request] or "..%252F..%252F..%252F..%252F..%252F" in [request] or "..%2F..%2F..%2F..%2F..%2F" in [request] or "/'" in [request] or "%22%3E%3C" in [request] or "union" in [request] or "information_schema" in [request] or "2,3,4" in [request] or "order%20by" in [request] or "powershell" in [request] or ".DownloadFile" in [request] or ";start%20" in [request] or ".exe" in [request] or ".zip" in [request] or ".tar.gz" in [request] or ".gzip" in [request] or ".bak" in [request] or ".inc" in [request] or ".asa" in [request] or ".txt" in [request] or ".rar" in [request] or ".ps1" in [request] or ".jar" in [request] or 'htaccess' in [request] or 'htpasswd' in [request] or 'password' in [request] or 'passwd' in [request] or '.sh' in [request] or '.ssh' in [request] or 'ftp' in [request] or 'sql' in [request] or '/etc/' in [request] or 'r57' in [request] or 'r58' in [request] or 'r59' in [request] or 'shell' in [request] or '%0D%0ASet-Cookie:mycookie=' in [request] or '%2527%253C' in [request] or '?&quot;&lt' in [request] or '%252e%252e/%252e%252e' in [request] or '.tar' in [request])
+				{
+					mutate {add_tag => "Attack"}
+				} else
+					{
+						mutate {add_tag => "Unclassified traffic"}
+					}
+}
+
+
+output
+{
+         elasticsearch
+                        {
+                                hosts => ["https://localhost:9243"]
+                                index => ""
+                                user => "*****"
+                                password => "******"
+                        }
+}
